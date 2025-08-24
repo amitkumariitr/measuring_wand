@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 Orientation Tracker</title>
+    <style>
+        /* Basic styling for a clean, mobile-friendly look */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f0f2f5;
+            color: #333;
+            padding: 1rem;
+            box-sizing: border-box;
+        }
+        .container {
+            text-align: center;
+            padding: 2rem;
+            border-radius: 12px;
+            background-color: white;
+            box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+        h1 {
+            color: #0056b3;
+            margin-top: 0;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.1s;
+            margin-bottom: 1rem;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:active {
+            transform: scale(0.98);
+        }
+        #status {
+            margin-top: 1rem;
+            font-style: italic;
+            color: #666;
+            min-height: 1.2em;
+        }
+        .data-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-top: 2rem;
+            font-size: 1.5rem;
+            text-align: left;
+        }
+        .label {
+            font-weight: bold;
+        }
+        .value {
+            font-family: "Courier New", Courier, monospace;
+            text-align: right;
+            color: #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Orientation Tracker</h1>
+        <button id="connectButton">Connect</button>
+        <div id="status">Disconnected</div>
+        <div class="data-grid">
+            <div class="label">Yaw:</div>
+            <div class="value"><span id="yaw">0.00</span>°</div>
+            <div class="label">Pitch:</div>
+            <div class="value"><span id="pitch">0.00</span>°</div>
+            <div class="label">Roll:</div>
+            <div class="value"><span id="roll">0.00</span>°</div>
+        </div>
+    </div>
+
+    <script>
+        // These UUIDs must match the ones in your ESP32 ble_manager.c
+        const SERVICE_UUID = 'abcd0000-0000-0000-0000-000000000001';
+        const CHARACTERISTIC_UUID = 'abcd0000-0000-0000-0000-000000000002';
+
+        const connectButton = document.getElementById('connectButton');
+        const statusDisplay = document.getElementById('status');
+        const yawDisplay = document.getElementById('yaw');
+        const pitchDisplay = document.getElementById('pitch');
+        const rollDisplay = document.getElementById('roll');
+
+        let bleDevice;
+        let bleServer;
+
+        connectButton.addEventListener('click', async () => {
+            if (!bleDevice || !bleDevice.gatt.connected) {
+                await connectToDevice();
+            } else {
+                await disconnectFromDevice();
+            }
+        });
+
+        async function connectToDevice() {
+            try {
+                log('Requesting Bluetooth device...');
+                bleDevice = await navigator.bluetooth.requestDevice({
+                    filters: [{ name: 'ESP32-Euler' }],
+                    optionalServices: [SERVICE_UUID]
+                });
+
+                log('Connecting to GATT Server...');
+                bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
+                bleServer = await bleDevice.gatt.connect();
+
+                log('Getting Service...');
+                const service = await bleServer.getPrimaryService(SERVICE_UUID);
+
+                log('Getting Characteristic...');
+                const eulerCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+
+                log('Starting Notifications...');
+                await eulerCharacteristic.startNotifications();
+                eulerCharacteristic.addEventListener('characteristicvaluechanged', handleNotifications);
+
+                log('Connected!');
+                statusDisplay.textContent = `Connected to ${bleDevice.name}`;
+                connectButton.textContent = 'Disconnect';
+
+            } catch (error) {
+                log(`Error: ${error}`);
+                statusDisplay.textContent = 'Connection failed. See console.';
+            }
+        }
+
+        async function disconnectFromDevice() {
+            if (!bleDevice || !bleDevice.gatt.connected) {
+                log('Device is not connected.');
+                return;
+            }
+            log('Disconnecting from device...');
+            await bleDevice.gatt.disconnect();
+        }
+
+        function onDisconnected(event) {
+            const device = event.target;
+            log(`Device ${device.name} is disconnected.`);
+            statusDisplay.textContent = 'Disconnected';
+            connectButton.textContent = 'Connect';
+            
+            // Reset values
+            yawDisplay.textContent = '0.00';
+            pitchDisplay.textContent = '0.00';
+            rollDisplay.textContent = '0.00';
+        }
+
+        function handleNotifications(event) {
+            const value = event.target.value; // This is a DataView object
+            if (value.byteLength !== 12) {
+                log('Received data with incorrect length.');
+                return;
+            }
+
+            // The data is 3 little-endian floats (4 bytes each).
+            // The 'true' argument specifies little-endian byte order.
+            const yaw = value.getFloat32(0, true);
+            const pitch = value.getFloat32(4, true);
+            const roll = value.getFloat32(8, true);
+
+            // Update the UI
+            yawDisplay.textContent = yaw.toFixed(2);
+            pitchDisplay.textContent = pitch.toFixed(2);
+            rollDisplay.textContent = roll.toFixed(2);
+        }
+
+        function log(message) {
+            console.log(message);
+        }
+    </script>
+</body>
+</html>
