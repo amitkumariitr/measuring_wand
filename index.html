@@ -27,13 +27,14 @@
             width: 100%;
             max-width: 400px;
         }
-        h1 {
+        h1, h2 {
             color: #0056b3;
             margin-top: 0;
         }
         h2 {
-            margin-top: 0;
+            font-size: 1.2rem;
             color: #333;
+            margin-bottom: 0.5rem;
         }
         button {
             background-color: #007bff;
@@ -57,7 +58,6 @@
             font-style: italic;
             color: #666;
             min-height: 1.2em;
-            transition: color 0.3s;
         }
         .data-grid {
             display: grid;
@@ -89,10 +89,16 @@
             background-color: #6c757d;
             margin-bottom: 0;
         }
+        .actions button.active {
+            background-color: #007bff;
+        }
         .actions button:hover {
             background-color: #5a6268;
         }
-        .diff-container {
+        .actions button.active:hover {
+            background-color: #0056b3;
+        }
+        .section-container {
             margin-top: 2rem;
             padding-top: 1.5rem;
             border-top: 1px solid #e9ecef;
@@ -106,29 +112,31 @@
         <button id="connectButton">Connect</button>
         <div id="status">Disconnected</div>
         
-        <div class="data-grid">
-            <div class="label">Yaw:</div>
-            <div class="value"><span id="yaw">0.00</span>°</div>
-            <div class="label">Pitch:</div>
-            <div class="value"><span id="pitch">0.00</span>°</div>
-            <div class="label">Roll:</div>
-            <div class="value"><span id="roll">0.00</span>°</div>
-        </div>
-
-        <div class="actions">
-            <button id="setDatumButton">Set Datum</button>
-            <button id="recordDiffButton">Record Difference</button>
-        </div>
-
-        <div class="diff-container">
-            <h2>Recorded Difference</h2>
+        <div class="section-container">
+            <div class="actions">
+                <button id="showAbsoluteButton" class="active">Show Absolute</button>
+                <button id="showRelativeButton">Show Relative</button>
+            </div>
             <div class="data-grid">
-                <div class="label">Yaw Diff:</div>
-                <div class="value"><span id="yawDiff">0.00</span>°</div>
-                <div class="label">Pitch Diff:</div>
-                <div class="value"><span id="pitchDiff">0.00</span>°</div>
-                <div class="label">Roll Diff:</div>
-                <div class="value"><span id="rollDiff">0.00</span>°</div>
+                <div class="label" id="yawLabel">Yaw:</div>
+                <div class="value"><span id="yawValue">0.00</span>°</div>
+                <div class="label" id="pitchLabel">Pitch:</div>
+                <div class="value"><span id="pitchValue">0.00</span>°</div>
+                <div class="label" id="rollLabel">Roll:</div>
+                <div class="value"><span id="rollValue">0.00</span>°</div>
+            </div>
+        </div>
+
+        <div class="section-container">
+            <button id="setDatumButton">Set Datum</button>
+            <h2>Current Datum</h2>
+            <div class="data-grid">
+                <div class="label">Yaw:</div>
+                <div class="value"><span id="yawDatum">0.00</span>°</div>
+                <div class="label">Pitch:</div>
+                <div class="value"><span id="pitchDatum">0.00</span>°</div>
+                <div class="label">Roll:</div>
+                <div class="value"><span id="rollDatum">0.00</span>°</div>
             </div>
         </div>
     </div>
@@ -138,24 +146,36 @@
         const SERVICE_UUID = 'abcd0000-0000-0000-0000-000000000001';
         const CHARACTERISTIC_UUID = 'abcd0000-0000-0000-0000-000000000002';
 
-        // Element references
+        // --- Element References ---
         const connectButton = document.getElementById('connectButton');
         const statusDisplay = document.getElementById('status');
-        const yawDisplay = document.getElementById('yaw');
-        const pitchDisplay = document.getElementById('pitch');
-        const rollDisplay = document.getElementById('roll');
+        const showAbsoluteButton = document.getElementById('showAbsoluteButton');
+        const showRelativeButton = document.getElementById('showRelativeButton');
         const setDatumButton = document.getElementById('setDatumButton');
-        const recordDiffButton = document.getElementById('recordDiffButton');
-        const yawDiffDisplay = document.getElementById('yawDiff');
-        const pitchDiffDisplay = document.getElementById('pitchDiff');
-        const rollDiffDisplay = document.getElementById('rollDiff');
+        
+        // Main Display Elements
+        const yawLabel = document.getElementById('yawLabel');
+        const pitchLabel = document.getElementById('pitchLabel');
+        const rollLabel = document.getElementById('rollLabel');
+        const yawValue = document.getElementById('yawValue');
+        const pitchValue = document.getElementById('pitchValue');
+        const rollValue = document.getElementById('rollValue');
 
-        // State variables
+        // Datum Display Elements
+        const yawDatumDisplay = document.getElementById('yawDatum');
+        const pitchDatumDisplay = document.getElementById('pitchDatum');
+        const rollDatumDisplay = document.getElementById('rollDatum');
+
+        // --- State Variables ---
         let bleDevice;
-        let bleServer;
         let currentOrientation = { yaw: 0, pitch: 0, roll: 0 };
         let datum = { yaw: 0, pitch: 0, roll: 0 };
-        let isDatumSet = false;
+        let displayMode = 'absolute'; // 'absolute' or 'relative'
+
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            updateDatumDisplay();
+        });
 
         // --- Event Listeners ---
         connectButton.addEventListener('click', async () => {
@@ -166,40 +186,14 @@
             }
         });
 
+        showAbsoluteButton.addEventListener('click', () => setDisplayMode('absolute'));
+        showRelativeButton.addEventListener('click', () => setDisplayMode('relative'));
+
         setDatumButton.addEventListener('click', () => {
-            datum = { ...currentOrientation }; // Create a copy of the current orientation
-            isDatumSet = true;
+            datum = { ...currentOrientation }; // Create a copy
+            updateDatumDisplay();
+            updateMainDisplay(); // Refresh main display if it's in relative mode
             log(`Datum set to: Y:${datum.yaw.toFixed(2)}, P:${datum.pitch.toFixed(2)}, R:${datum.roll.toFixed(2)}`);
-            
-            // Provide visual feedback
-            flashStatus('Datum has been set!');
-        });
-
-        recordDiffButton.addEventListener('click', () => {
-            if (!isDatumSet) {
-                log('Cannot record difference. Please set a datum first.');
-                flashStatus('Set a datum first!', true);
-                return;
-            }
-
-            // Calculate the raw difference
-            let diffYaw = currentOrientation.yaw - datum.yaw;
-            const diffPitch = currentOrientation.pitch - datum.pitch;
-            const diffRoll = currentOrientation.roll - datum.roll;
-
-            // Correct for yaw wrapping around -180/180 degrees
-            if (diffYaw > 180) {
-                diffYaw -= 360;
-            } else if (diffYaw < -180) {
-                diffYaw += 360;
-            }
-
-            // Update the difference display
-            yawDiffDisplay.textContent = diffYaw.toFixed(2);
-            pitchDiffDisplay.textContent = diffPitch.toFixed(2);
-            rollDiffDisplay.textContent = diffRoll.toFixed(2);
-
-            log(`Difference recorded: dY:${diffYaw.toFixed(2)}, dP:${diffPitch.toFixed(2)}, dR:${diffRoll.toFixed(2)}`);
         });
 
         // --- Bluetooth Functions ---
@@ -210,25 +204,19 @@
                     filters: [{ name: 'ESP32-Euler' }],
                     optionalServices: [SERVICE_UUID]
                 });
-
-                log('Connecting to GATT Server...');
                 bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
-                bleServer = await bleDevice.gatt.connect();
-
+                log('Connecting to GATT Server...');
+                const server = await bleDevice.gatt.connect();
                 log('Getting Service...');
-                const service = await bleServer.getPrimaryService(SERVICE_UUID);
-
+                const service = await server.getPrimaryService(SERVICE_UUID);
                 log('Getting Characteristic...');
-                const eulerCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
-
+                const characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
                 log('Starting Notifications...');
-                await eulerCharacteristic.startNotifications();
-                eulerCharacteristic.addEventListener('characteristicvaluechanged', handleNotifications);
-
+                await characteristic.startNotifications();
+                characteristic.addEventListener('characteristicvaluechanged', handleNotifications);
                 log('Connected!');
                 statusDisplay.textContent = `Connected to ${bleDevice.name}`;
                 connectButton.textContent = 'Disconnect';
-
             } catch (error) {
                 log(`[ERROR] Connection failed: ${error}`);
                 statusDisplay.textContent = 'Connection failed. See console.';
@@ -237,7 +225,6 @@
 
         async function disconnectFromDevice() {
             if (!bleDevice || !bleDevice.gatt.connected) return;
-            log('Disconnecting from device...');
             await bleDevice.gatt.disconnect();
         }
 
@@ -245,44 +232,58 @@
             log(`Device ${event.target.name} is disconnected.`);
             statusDisplay.textContent = 'Disconnected';
             connectButton.textContent = 'Connect';
-            
-            // Reset all values
-            yawDisplay.textContent = '0.00';
-            pitchDisplay.textContent = '0.00';
-            rollDisplay.textContent = '0.00';
-            yawDiffDisplay.textContent = '0.00';
-            pitchDiffDisplay.textContent = '0.00';
-            rollDiffDisplay.textContent = '0.00';
-            isDatumSet = false;
+            currentOrientation = { yaw: 0, pitch: 0, roll: 0 };
+            updateMainDisplay();
         }
 
         function handleNotifications(event) {
             const value = event.target.value;
             if (value.byteLength !== 12) return;
 
-            const yaw = value.getFloat32(0, true);
-            const pitch = value.getFloat32(4, true);
-            const roll = value.getFloat32(8, true);
+            currentOrientation.yaw = value.getFloat32(0, true);
+            currentOrientation.pitch = value.getFloat32(4, true);
+            currentOrientation.roll = value.getFloat32(8, true);
 
-            // Update the global current orientation state
-            currentOrientation = { yaw, pitch, roll };
-
-            // Update the main UI display
-            yawDisplay.textContent = yaw.toFixed(2);
-            pitchDisplay.textContent = pitch.toFixed(2);
-            rollDisplay.textContent = roll.toFixed(2);
+            updateMainDisplay();
         }
 
-        // --- Utility Functions ---
-        function flashStatus(message, isError = false) {
-            const originalText = statusDisplay.textContent;
-            statusDisplay.textContent = message;
-            statusDisplay.style.color = isError ? '#dc3545' : '#28a745';
+        // --- UI Update Functions ---
+        function setDisplayMode(mode) {
+            displayMode = mode;
+            showAbsoluteButton.classList.toggle('active', mode === 'absolute');
+            showRelativeButton.classList.toggle('active', mode === 'relative');
+            updateMainDisplay();
+        }
 
-            setTimeout(() => {
-                statusDisplay.textContent = originalText;
-                statusDisplay.style.color = '#666';
-            }, 2000);
+        function updateMainDisplay() {
+            if (displayMode === 'absolute') {
+                yawLabel.textContent = 'Yaw:';
+                pitchLabel.textContent = 'Pitch:';
+                rollLabel.textContent = 'Roll:';
+                yawValue.textContent = currentOrientation.yaw.toFixed(2);
+                pitchValue.textContent = currentOrientation.pitch.toFixed(2);
+                rollValue.textContent = currentOrientation.roll.toFixed(2);
+            } else { // relative mode
+                let diffYaw = currentOrientation.yaw - datum.yaw;
+                if (diffYaw > 180) diffYaw -= 360;
+                else if (diffYaw < -180) diffYaw += 360;
+
+                const diffPitch = currentOrientation.pitch - datum.pitch;
+                const diffRoll = currentOrientation.roll - datum.roll;
+
+                yawLabel.textContent = 'Yaw Diff:';
+                pitchLabel.textContent = 'Pitch Diff:';
+                rollLabel.textContent = 'Roll Diff:';
+                yawValue.textContent = diffYaw.toFixed(2);
+                pitchValue.textContent = diffPitch.toFixed(2);
+                rollValue.textContent = diffRoll.toFixed(2);
+            }
+        }
+
+        function updateDatumDisplay() {
+            yawDatumDisplay.textContent = datum.yaw.toFixed(2);
+            pitchDatumDisplay.textContent = datum.pitch.toFixed(2);
+            rollDatumDisplay.textContent = datum.roll.toFixed(2);
         }
 
         function log(message) {
