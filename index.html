@@ -5,25 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ESP32 Orientation Tracker</title>
     <style>
+        /* Basic styling for a clean, mobile-friendly look */
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            margin: 0;
-            background-color: #f0f2f5;
-            color: #333;
-            padding: 1rem;
-            box-sizing: border-box;
-        }
-        .container {
-            text-align: center;
-            padding: 2rem;
-            border-radius: 12px;
-            background-color: white;
-            box-shadow: 0 6px 12px rgba(0,0,0,0.1);
             width: 100%;
             max-width: 400px;
         }
@@ -39,39 +24,13 @@
         button {
             background-color: #007bff;
             color: white;
-            border: none;
-            padding: 15px 30px;
-            font-size: 1.2rem;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: background-color 0.3s, transform 0.1s;
-            margin-bottom: 1rem;
-        }
-        button:hover {
-            background-color: #0056b3;
-        }
-        button:active {
-            transform: scale(0.98);
-        }
-        #status {
-            margin-top: 1rem;
             font-style: italic;
             color: #666;
             min-height: 1.2em;
+            transition: color 0.3s;
         }
         .data-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1rem;
-            margin-top: 1rem;
-            font-size: 1.5rem;
-            text-align: left;
-        }
-        .label {
-            font-weight: bold;
-        }
-        .value {
-            font-family: "Courier New", Courier, monospace;
             text-align: right;
             color: #007bff;
         }
@@ -104,6 +63,28 @@
             border-top: 1px solid #e9ecef;
             width: 100%;
         }
+        .log-box {
+            max-height: 150px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: left;
+            background-color: #f8f9fa;
+            margin-top: 1rem;
+        }
+        .log-entry {
+            font-family: "Courier New", Courier, monospace;
+            font-size: 1rem;
+            padding: 0.25rem 0.5rem;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+        .log-entry:last-child {
+            border-bottom: none;
+        }
     </style>
 </head>
 <body>
@@ -128,7 +109,10 @@
         </div>
 
         <div class="section-container">
-            <button id="setDatumButton">Set Datum</button>
+            <div class="actions">
+                <button id="setDatumButton">Set Datum</button>
+                <button id="recordDiffButton">Record Difference</button>
+            </div>
             <h2>Current Datum</h2>
             <div class="data-grid">
                 <div class="label">Yaw:</div>
@@ -137,6 +121,13 @@
                 <div class="value"><span id="pitchDatum">0.00</span>°</div>
                 <div class="label">Roll:</div>
                 <div class="value"><span id="rollDatum">0.00</span>°</div>
+            </div>
+        </div>
+
+        <div class="section-container">
+            <h2>Recorded Log</h2>
+            <div id="logContainer" class="log-box">
+                <!-- Log entries will be added here -->
             </div>
         </div>
     </div>
@@ -152,6 +143,8 @@
         const showAbsoluteButton = document.getElementById('showAbsoluteButton');
         const showRelativeButton = document.getElementById('showRelativeButton');
         const setDatumButton = document.getElementById('setDatumButton');
+        const recordDiffButton = document.getElementById('recordDiffButton');
+        const logContainer = document.getElementById('logContainer');
         
         // Main Display Elements
         const yawLabel = document.getElementById('yawLabel');
@@ -171,6 +164,7 @@
         let currentOrientation = { yaw: 0, pitch: 0, roll: 0 };
         let datum = { yaw: 0, pitch: 0, roll: 0 };
         let displayMode = 'absolute'; // 'absolute' or 'relative'
+        let logCounter = 1;
 
         // --- Initialization ---
         document.addEventListener('DOMContentLoaded', () => {
@@ -190,10 +184,43 @@
         showRelativeButton.addEventListener('click', () => setDisplayMode('relative'));
 
         setDatumButton.addEventListener('click', () => {
+            if (!bleDevice || !bleDevice.gatt.connected) {
+                flashStatus('Connect to device first!', true);
+                return;
+            }
             datum = { ...currentOrientation }; // Create a copy
             updateDatumDisplay();
             updateMainDisplay(); // Refresh main display if it's in relative mode
+            flashStatus('Datum has been set!');
             log(`Datum set to: Y:${datum.yaw.toFixed(2)}, P:${datum.pitch.toFixed(2)}, R:${datum.roll.toFixed(2)}`);
+        });
+
+        recordDiffButton.addEventListener('click', () => {
+            if (!bleDevice || !bleDevice.gatt.connected) {
+                flashStatus('Connect to device first!', true);
+                return;
+            }
+
+            // Calculate the raw difference
+            let diffYaw = currentOrientation.yaw - datum.yaw;
+            if (diffYaw > 180) diffYaw -= 360;
+            else if (diffYaw < -180) diffYaw += 360;
+            const diffPitch = currentOrientation.pitch - datum.pitch;
+            const diffRoll = currentOrientation.roll - datum.roll;
+
+            // Create and prepend the log entry
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            logEntry.innerHTML = `
+                <span>#${logCounter++}:</span>
+                <span>Y:${diffYaw.toFixed(2)}</span>
+                <span>P:${diffPitch.toFixed(2)}</span>
+                <span>R:${diffRoll.toFixed(2)}</span>
+            `;
+            logContainer.prepend(logEntry);
+            logContainer.scrollTop = 0; // Scroll to top to see the new entry
+
+            log(`Difference recorded: dY:${diffYaw.toFixed(2)}, dP:${diffPitch.toFixed(2)}, dR:${diffRoll.toFixed(2)}`);
         });
 
         // --- Bluetooth Functions ---
@@ -237,7 +264,7 @@
         }
 
         function handleNotifications(event) {
-            const value = event.target.value;
+            const value = event.target.value; // This is a DataView object
             if (value.byteLength !== 12) return;
 
             currentOrientation.yaw = value.getFloat32(0, true);
@@ -286,9 +313,19 @@
             rollDatumDisplay.textContent = datum.roll.toFixed(2);
         }
 
+        function flashStatus(message, isError = false) {
+            const originalText = statusDisplay.textContent;
+            statusDisplay.textContent = message;
+            statusDisplay.style.color = isError ? '#dc3545' : '#28a745';
+
+            setTimeout(() => {
+                statusDisplay.textContent = originalText;
+                statusDisplay.style.color = '#666';
+            }, 2000);
+        }
+
+        // --- Utility Functions ---
         function log(message) {
             console.log(message);
         }
-    </script>
-</body>
-</html>
+
