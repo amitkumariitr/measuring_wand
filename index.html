@@ -4,130 +4,72 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ESP32 Orientation Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        /* Basic styling for a clean, mobile-friendly look */
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            display: flex;
-            width: 100%;
-            max-width: 400px;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }
-        h1, h2 {
-            color: #0056b3;
-            margin-top: 0;
-        }
-        h2 {
-            font-size: 1.2rem;
-            color: #333;
-            margin-bottom: 0.5rem;
-        }
-        button {
-            background-color: #007bff;
-            color: white;
-            font-style: italic;
-            color: #666;
-            min-height: 1.2em;
-            transition: color 0.3s;
-        }
-        .data-grid {
-            display: grid;
-            text-align: right;
-            color: #007bff;
-        }
-        .actions {
-            display: flex;
-            gap: 1rem;
-            justify-content: center;
-            margin-top: 1.5rem;
-            width: 100%;
-        }
-        .actions button {
-            flex-grow: 1;
-            font-size: 1rem;
-            padding: 12px 20px;
-            background-color: #6c757d;
-            margin-bottom: 0;
-        }
-        .actions button.active {
-            background-color: #007bff;
-        }
-        .actions button:hover {
-            background-color: #5a6268;
-        }
-        .actions button.active:hover {
-            background-color: #0056b3;
-        }
-        .section-container {
-            margin-top: 2rem;
-            padding-top: 1.5rem;
-            border-top: 1px solid #e9ecef;
-            width: 100%;
-        }
-        .log-box {
-            max-height: 150px;
-            overflow-y: auto;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 1rem;
-            text-align: left;
-            background-color: #f8f9fa;
-            margin-top: 1rem;
-        }
+        /* Added a class for individual log entries for easier styling */
         .log-entry {
-            font-family: "Courier New", Courier, monospace;
-            font-size: 1rem;
-            padding: 0.25rem 0.5rem;
-            border-bottom: 1px solid #eee;
             display: flex;
             justify-content: space-between;
-            gap: 1rem;
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            background-color: #f8f9fa;
+            margin-bottom: 0.5rem;
+            font-family: "Courier New", Courier, monospace;
+            font-size: 1rem;
         }
         .log-entry:last-child {
-            border-bottom: none;
+            margin-bottom: 0;
         }
     </style>
 </head>
-<body>
-    <div class="container">
-        <h1>Orientation Tracker</h1>
-        <button id="connectButton">Connect</button>
-        <div id="status">Disconnected</div>
+<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4 box-border text-gray-800">
+
+    <div class="container bg-white text-center p-8 rounded-xl shadow-lg w-full max-w-md">
+        <h1 class="text-3xl font-bold text-blue-700 mb-4">Orientation Tracker</h1>
+        <button id="connectButton" class="w-full bg-blue-600 text-white border-none py-3 px-6 text-lg rounded-lg cursor-pointer transition-all duration-300 hover:bg-blue-700 active:scale-95 mb-4">Connect</button>
+        <div id="status" class="italic text-gray-600 min-h-[1.2em]">Disconnected</div>
         
-        <div class="section-container">
-            <div class="actions">
-                <button id="showAbsoluteButton" class="active">Show Absolute</button>
-                <button id="showRelativeButton">Show Relative</button>
+        <div class="section-container mt-8 pt-6 border-t border-gray-200 w-full">
+            <div class="actions flex gap-4 justify-center w-full">
+                <button id="showAbsoluteButton" class="active flex-grow text-base py-3 px-5 rounded-lg transition-colors bg-gray-600 text-white">Show Absolute</button>
+                <button id="showRelativeButton" class="flex-grow text-base py-3 px-5 rounded-lg transition-colors bg-gray-600 text-white">Show Relative</button>
             </div>
-            <div class="data-grid">
-                <div class="label" id="yawLabel">Yaw:</div>
-                <div class="value"><span id="yawValue">0.00</span>°</div>
-                <div class="label" id="pitchLabel">Pitch:</div>
-                <div class="value"><span id="pitchValue">0.00</span>°</div>
-                <div class="label" id="rollLabel">Roll:</div>
-                <div class="value"><span id="rollValue">0.00</span>°</div>
-            </div>
-        </div>
-
-        <div class="section-container">
-            <div class="actions">
-                <button id="setDatumButton">Set Datum</button>
-                <button id="recordDiffButton">Record Difference</button>
-            </div>
-            <h2>Current Datum</h2>
-            <div class="data-grid">
-                <div class="label">Yaw:</div>
-                <div class="value"><span id="yawDatum">0.00</span>°</div>
-                <div class="label">Pitch:</div>
-                <div class="value"><span id="pitchDatum">0.00</span>°</div>
-                <div class="label">Roll:</div>
-                <div class="value"><span id="rollDatum">0.00</span>°</div>
+            <div class="data-grid grid grid-cols-2 gap-x-4 gap-y-2 mt-6 text-2xl text-left">
+                <div class="label font-bold" id="yawLabel">Yaw:</div>
+                <div class="value font-mono text-right text-blue-600"><span id="yawValue">0.00</span>°</div>
+                <div class="label font-bold" id="pitchLabel">Pitch:</div>
+                <div class="value font-mono text-right text-blue-600"><span id="pitchValue">0.00</span>°</div>
+                <div class="label font-bold" id="rollLabel">Roll:</div>
+                <div class="value font-mono text-right text-blue-600"><span id="rollValue">0.00</span>°</div>
             </div>
         </div>
 
-        <div class="section-container">
-            <h2>Recorded Log</h2>
-            <div id="logContainer" class="log-box">
-                <!-- Log entries will be added here -->
+        <div class="section-container mt-8 pt-6 border-t border-gray-200 w-full">
+            <div class="grid grid-cols-2 gap-4">
+                <button id="setDatumButton" class="w-full bg-indigo-600 text-white border-none py-3 px-6 text-base rounded-lg cursor-pointer transition-all duration-300 hover:bg-indigo-700 active:scale-95">Set Datum</button>
+                <!-- NEW: Record Difference Button -->
+                <button id="recordDifferenceButton" class="w-full bg-green-600 text-white border-none py-3 px-6 text-base rounded-lg cursor-pointer transition-all duration-300 hover:bg-green-700 active:scale-95">Record Diff</button>
+            </div>
+            <h2 class="text-lg font-semibold mt-6 mb-2 text-gray-700">Current Datum</h2>
+            <div class="data-grid grid grid-cols-2 gap-x-4 gap-y-2 text-xl text-left">
+                <div class="label font-medium">Yaw:</div>
+                <div class="value font-mono text-right text-indigo-600"><span id="yawDatum">0.00</span>°</div>
+                <div class="label font-medium">Pitch:</div>
+                <div class="value font-mono text-right text-indigo-600"><span id="pitchDatum">0.00</span>°</div>
+                <div class="label font-medium">Roll:</div>
+                <div class="value font-mono text-right text-indigo-600"><span id="rollDatum">0.00</span>°</div>
+            </div>
+        </div>
+
+        <!-- NEW: Recorded Data Section -->
+        <div class="section-container mt-8 pt-6 border-t border-gray-200 w-full">
+            <h2 class="text-lg font-semibold mb-3 text-gray-700">Recorded Differences</h2>
+            <div id="logContainer" class="bg-gray-50 border border-gray-300 rounded-lg p-3 h-48 overflow-y-auto text-left">
+                <!-- Logged entries will be appended here -->
             </div>
         </div>
     </div>
@@ -143,8 +85,6 @@
         const showAbsoluteButton = document.getElementById('showAbsoluteButton');
         const showRelativeButton = document.getElementById('showRelativeButton');
         const setDatumButton = document.getElementById('setDatumButton');
-        const recordDiffButton = document.getElementById('recordDiffButton');
-        const logContainer = document.getElementById('logContainer');
         
         // Main Display Elements
         const yawLabel = document.getElementById('yawLabel');
@@ -159,16 +99,20 @@
         const pitchDatumDisplay = document.getElementById('pitchDatum');
         const rollDatumDisplay = document.getElementById('rollDatum');
 
+        // --- NEW: Recording Elements ---
+        const recordDifferenceButton = document.getElementById('recordDifferenceButton');
+        const logContainer = document.getElementById('logContainer');
+
         // --- State Variables ---
         let bleDevice;
         let currentOrientation = { yaw: 0, pitch: 0, roll: 0 };
         let datum = { yaw: 0, pitch: 0, roll: 0 };
         let displayMode = 'absolute'; // 'absolute' or 'relative'
-        let logCounter = 1;
 
         // --- Initialization ---
         document.addEventListener('DOMContentLoaded', () => {
             updateDatumDisplay();
+            updateButtonStyles();
         });
 
         // --- Event Listeners ---
@@ -184,44 +128,37 @@
         showRelativeButton.addEventListener('click', () => setDisplayMode('relative'));
 
         setDatumButton.addEventListener('click', () => {
-            if (!bleDevice || !bleDevice.gatt.connected) {
-                flashStatus('Connect to device first!', true);
-                return;
-            }
             datum = { ...currentOrientation }; // Create a copy
             updateDatumDisplay();
             updateMainDisplay(); // Refresh main display if it's in relative mode
-            flashStatus('Datum has been set!');
             log(`Datum set to: Y:${datum.yaw.toFixed(2)}, P:${datum.pitch.toFixed(2)}, R:${datum.roll.toFixed(2)}`);
         });
 
-        recordDiffButton.addEventListener('click', () => {
-            if (!bleDevice || !bleDevice.gatt.connected) {
-                flashStatus('Connect to device first!', true);
-                return;
-            }
-
-            // Calculate the raw difference
+        // --- NEW: Record Difference Button Listener ---
+        recordDifferenceButton.addEventListener('click', () => {
+            // Calculate the difference
             let diffYaw = currentOrientation.yaw - datum.yaw;
             if (diffYaw > 180) diffYaw -= 360;
             else if (diffYaw < -180) diffYaw += 360;
             const diffPitch = currentOrientation.pitch - datum.pitch;
             const diffRoll = currentOrientation.roll - datum.roll;
 
-            // Create and prepend the log entry
+            // Create a new log entry element
             const logEntry = document.createElement('div');
             logEntry.className = 'log-entry';
             logEntry.innerHTML = `
-                <span>#${logCounter++}:</span>
-                <span>Y:${diffYaw.toFixed(2)}</span>
-                <span>P:${diffPitch.toFixed(2)}</span>
-                <span>R:${diffRoll.toFixed(2)}</span>
+                <span>Y: <strong>${diffYaw.toFixed(2)}°</strong></span>
+                <span>P: <strong>${diffPitch.toFixed(2)}°</strong></span>
+                <span>R: <strong>${diffRoll.toFixed(2)}°</strong></span>
             `;
-            logContainer.prepend(logEntry);
-            logContainer.scrollTop = 0; // Scroll to top to see the new entry
+            
+            // Append the new entry and scroll to the bottom
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
 
-            log(`Difference recorded: dY:${diffYaw.toFixed(2)}, dP:${diffPitch.toFixed(2)}, dR:${diffRoll.toFixed(2)}`);
+            log(`Recorded diff: Y:${diffYaw.toFixed(2)}, P:${diffPitch.toFixed(2)}, R:${diffRoll.toFixed(2)}`);
         });
+
 
         // --- Bluetooth Functions ---
         async function connectToDevice() {
@@ -264,9 +201,10 @@
         }
 
         function handleNotifications(event) {
-            const value = event.target.value; // This is a DataView object
+            const value = event.target.value;
             if (value.byteLength !== 12) return;
 
+            // Data is received as three 32-bit floats (little-endian)
             currentOrientation.yaw = value.getFloat32(0, true);
             currentOrientation.pitch = value.getFloat32(4, true);
             currentOrientation.roll = value.getFloat32(8, true);
@@ -277,9 +215,22 @@
         // --- UI Update Functions ---
         function setDisplayMode(mode) {
             displayMode = mode;
-            showAbsoluteButton.classList.toggle('active', mode === 'absolute');
-            showRelativeButton.classList.toggle('active', mode === 'relative');
+            updateButtonStyles();
             updateMainDisplay();
+        }
+        
+        function updateButtonStyles() {
+            if (displayMode === 'absolute') {
+                showAbsoluteButton.classList.remove('bg-gray-600');
+                showAbsoluteButton.classList.add('bg-blue-600');
+                showRelativeButton.classList.add('bg-gray-600');
+                showRelativeButton.classList.remove('bg-blue-600');
+            } else {
+                showRelativeButton.classList.remove('bg-gray-600');
+                showRelativeButton.classList.add('bg-blue-600');
+                showAbsoluteButton.classList.add('bg-gray-600');
+                showAbsoluteButton.classList.remove('bg-blue-600');
+            }
         }
 
         function updateMainDisplay() {
@@ -292,6 +243,7 @@
                 rollValue.textContent = currentOrientation.roll.toFixed(2);
             } else { // relative mode
                 let diffYaw = currentOrientation.yaw - datum.yaw;
+                // Normalize yaw difference to the range [-180, 180]
                 if (diffYaw > 180) diffYaw -= 360;
                 else if (diffYaw < -180) diffYaw += 360;
 
@@ -313,19 +265,9 @@
             rollDatumDisplay.textContent = datum.roll.toFixed(2);
         }
 
-        function flashStatus(message, isError = false) {
-            const originalText = statusDisplay.textContent;
-            statusDisplay.textContent = message;
-            statusDisplay.style.color = isError ? '#dc3545' : '#28a745';
-
-            setTimeout(() => {
-                statusDisplay.textContent = originalText;
-                statusDisplay.style.color = '#666';
-            }, 2000);
-        }
-
-        // --- Utility Functions ---
         function log(message) {
             console.log(message);
         }
-
+    </script>
+</body>
+</html>
