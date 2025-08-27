@@ -38,14 +38,14 @@
 </head>
 <body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4 box-border text-gray-800">
 
-    <div class="container bg-white text-center p-8 rounded-xl shadow-lg w-full max-w-md">
+    <!-- UPDATED: Added responsive padding and max-width classes -->
+    <div class="container bg-white text-center p-6 sm:p-8 rounded-xl shadow-lg w-full max-w-md md:max-w-lg lg:max-w-xl">
         <h1 class="text-3xl font-bold text-blue-700 mb-4">Orientation Tracker</h1>
         <button id="connectButton" class="w-full bg-blue-600 text-white border-none py-3 px-6 text-lg rounded-lg cursor-pointer transition-all duration-300 hover:bg-blue-700 active:scale-95 mb-4">Connect</button>
         <div id="status" class="italic text-gray-600 min-h-[1.2em]">Disconnected</div>
         
         <div class="section-container mt-8 pt-6 border-t border-gray-200 w-full">
             <div class="actions flex gap-4 justify-center w-full">
-                <!-- Added control-button class and disabled styles -->
                 <button id="showAbsoluteButton" class="control-button active flex-grow text-base py-3 px-5 rounded-lg transition-colors bg-gray-600 text-white disabled:opacity-50 disabled:cursor-not-allowed">Show Absolute</button>
                 <button id="showRelativeButton" class="control-button flex-grow text-base py-3 px-5 rounded-lg transition-colors bg-gray-600 text-white disabled:opacity-50 disabled:cursor-not-allowed">Show Relative</button>
             </div>
@@ -61,7 +61,6 @@
 
         <div class="section-container mt-8 pt-6 border-t border-gray-200 w-full">
             <div class="grid grid-cols-2 gap-4">
-                 <!-- Added control-button class and disabled styles -->
                 <button id="setDatumButton" class="control-button w-full bg-indigo-600 text-white border-none py-3 px-6 text-base rounded-lg cursor-pointer transition-all duration-300 hover:bg-indigo-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">Set Datum</button>
                 <button id="recordDifferenceButton" class="control-button w-full bg-green-600 text-white border-none py-3 px-6 text-base rounded-lg cursor-pointer transition-all duration-300 hover:bg-green-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">Record Diff</button>
             </div>
@@ -125,7 +124,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             updateDatumDisplay();
             updateButtonStyles();
-            updateButtonStates(false); // NEW: Set initial button state to disabled
+            updateButtonStates(false);
         });
 
         // --- Event Listeners ---
@@ -185,11 +184,11 @@
                 log('Connected!');
                 statusDisplay.textContent = `Connected to ${bleDevice.name}`;
                 connectButton.textContent = 'Disconnect';
-                updateButtonStates(true); // NEW: Enable buttons on connect
+                updateButtonStates(true);
             } catch (error) {
                 log(`[ERROR] Connection failed: ${error}`);
                 statusDisplay.textContent = 'Connection failed. See console.';
-                updateButtonStates(false); // NEW: Ensure buttons are disabled on fail
+                updateButtonStates(false);
             }
         }
 
@@ -204,7 +203,7 @@
             connectButton.textContent = 'Connect';
             currentOrientation = { yaw: 0, pitch: 0, roll: 0 };
             updateMainDisplay();
-            updateButtonStates(false); // NEW: Disable buttons on disconnect
+            updateButtonStates(false);
         }
 
         function handleNotifications(event) {
@@ -217,8 +216,6 @@
         }
 
         // --- UI Update Functions ---
-
-        // NEW: Function to enable/disable all control buttons
         function updateButtonStates(isConnected) {
             const controlButtons = document.querySelectorAll('.control-button');
             controlButtons.forEach(button => {
