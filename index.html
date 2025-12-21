@@ -38,17 +38,18 @@
 </head>
 <body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4 box-border text-gray-800">
 
-    <!-- UPDATED: Added responsive padding and max-width classes -->
     <div class="container bg-white text-center p-6 sm:p-8 rounded-xl shadow-lg w-full max-w-md md:max-w-lg lg:max-w-xl">
         <h1 class="text-3xl font-bold text-blue-700 mb-4">Orientation Tracker</h1>
         <button id="connectButton" class="w-full bg-blue-600 text-white border-none py-3 px-6 text-lg rounded-lg cursor-pointer transition-all duration-300 hover:bg-blue-700 active:scale-95 mb-4">Connect</button>
         <div id="status" class="italic text-gray-600 min-h-[1.2em]">Disconnected</div>
         
+        <!-- Mode Toggles -->
         <div class="section-container mt-8 pt-6 border-t border-gray-200 w-full">
             <div class="actions flex gap-4 justify-center w-full">
-                <button id="showAbsoluteButton" class="control-button active flex-grow text-base py-3 px-5 rounded-lg transition-colors bg-gray-600 text-white disabled:opacity-50 disabled:cursor-not-allowed">Show Absolute</button>
-                <button id="showRelativeButton" class="control-button flex-grow text-base py-3 px-5 rounded-lg transition-colors bg-gray-600 text-white disabled:opacity-50 disabled:cursor-not-allowed">Show Relative</button>
+                <button id="showAbsoluteButton" class="control-button active flex-grow text-base py-3 px-2 rounded-lg transition-colors bg-gray-600 text-white disabled:opacity-50 disabled:cursor-not-allowed">Show Absolute</button>
+                <button id="showRelativeButton" class="control-button flex-grow text-base py-3 px-2 rounded-lg transition-colors bg-gray-600 text-white disabled:opacity-50 disabled:cursor-not-allowed">Show Relative</button>
             </div>
+            
             <div class="data-grid grid grid-cols-2 gap-x-4 gap-y-2 mt-6 text-2xl text-left">
                 <div class="label font-bold" id="yawLabel">Yaw:</div>
                 <div class="value font-mono text-right text-blue-600"><span id="yawValue">0.00</span>°</div>
@@ -59,12 +60,15 @@
             </div>
         </div>
 
+        <!-- Datum Controls -->
         <div class="section-container mt-8 pt-6 border-t border-gray-200 w-full">
-            <div class="grid grid-cols-2 gap-4">
-                <button id="setDatumButton" class="control-button w-full bg-indigo-600 text-white border-none py-3 px-6 text-base rounded-lg cursor-pointer transition-all duration-300 hover:bg-indigo-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">Set Datum</button>
-                <button id="recordDifferenceButton" class="control-button w-full bg-green-600 text-white border-none py-3 px-6 text-base rounded-lg cursor-pointer transition-all duration-300 hover:bg-green-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">Record Diff</button>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <button id="setDatumButton" class="control-button w-full bg-indigo-600 text-white border-none py-3 px-2 text-sm font-semibold rounded-lg cursor-pointer transition-all duration-300 hover:bg-indigo-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">Set Datum</button>
+                <button id="resetDatumButton" class="control-button w-full bg-rose-600 text-white border-none py-3 px-2 text-sm font-semibold rounded-lg cursor-pointer transition-all duration-300 hover:bg-rose-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">Reset Datum</button>
+                <button id="recordDifferenceButton" class="control-button w-full bg-green-600 text-white border-none py-3 px-2 text-sm font-semibold rounded-lg cursor-pointer transition-all duration-300 hover:bg-green-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">Record Diff</button>
             </div>
-            <h2 class="text-lg font-semibold mt-6 mb-2 text-gray-700">Current Datum</h2>
+            
+            <h2 class="text-lg font-semibold mt-6 mb-2 text-gray-700">Current Datum (Reference)</h2>
             <div class="data-grid grid grid-cols-2 gap-x-4 gap-y-2 text-xl text-left">
                 <div class="label font-medium">Yaw:</div>
                 <div class="value font-mono text-right text-indigo-600"><span id="yawDatum">0.00</span>°</div>
@@ -75,8 +79,12 @@
             </div>
         </div>
 
+        <!-- History Log -->
         <div class="section-container mt-8 pt-6 border-t border-gray-200 w-full">
-            <h2 class="text-lg font-semibold mb-3 text-gray-700">Recorded Differences</h2>
+            <div class="flex justify-between items-center mb-3">
+                <h2 class="text-lg font-semibold text-gray-700">Recorded Differences</h2>
+                <button id="clearLogButton" class="text-xs text-gray-400 hover:text-red-500 transition-colors">Clear Log</button>
+            </div>
             <div id="logContainer" class="bg-gray-50 border border-gray-300 rounded-lg overflow-x-auto">
                 <div class="log-header grid grid-cols-[80px_1fr_1fr_1fr] gap-4 p-2 font-bold text-gray-600 bg-gray-200 sticky top-0 text-right">
                     <span class="text-left">Name</span>
@@ -101,7 +109,9 @@
         const showAbsoluteButton = document.getElementById('showAbsoluteButton');
         const showRelativeButton = document.getElementById('showRelativeButton');
         const setDatumButton = document.getElementById('setDatumButton');
+        const resetDatumButton = document.getElementById('resetDatumButton');
         const recordDifferenceButton = document.getElementById('recordDifferenceButton');
+        const clearLogButton = document.getElementById('clearLogButton');
         const yawLabel = document.getElementById('yawLabel');
         const pitchLabel = document.getElementById('pitchLabel');
         const rollLabel = document.getElementById('rollLabel');
@@ -143,6 +153,13 @@
             log(`Datum set to: Y:${datum.yaw.toFixed(2)}, P:${datum.pitch.toFixed(2)}, R:${datum.roll.toFixed(2)}`);
         });
 
+        resetDatumButton.addEventListener('click', () => {
+            datum = { yaw: 0, pitch: 0, roll: 0 };
+            updateDatumDisplay();
+            updateMainDisplay();
+            log(`Datum reset to zero.`);
+        });
+
         recordDifferenceButton.addEventListener('click', () => {
             logCounter++;
             let diffYaw = currentOrientation.yaw - datum.yaw;
@@ -150,10 +167,11 @@
             else if (diffYaw < -180) diffYaw += 360;
             const diffPitch = currentOrientation.pitch - datum.pitch;
             const diffRoll = currentOrientation.roll - datum.roll;
+            
             const logEntry = document.createElement('div');
             logEntry.className = 'log-entry';
             logEntry.innerHTML = `
-                <span>Diff ${logCounter}</span>
+                <span>#${logCounter}</span>
                 <span>${diffYaw.toFixed(2)}°</span>
                 <span>${diffPitch.toFixed(2)}°</span>
                 <span>${diffRoll.toFixed(2)}°</span>
@@ -163,10 +181,17 @@
             log(`Recorded Diff ${logCounter}: Y:${diffYaw.toFixed(2)}, P:${diffPitch.toFixed(2)}, R:${diffRoll.toFixed(2)}`);
         });
 
+        clearLogButton.addEventListener('click', () => {
+            logBody.innerHTML = '';
+            logCounter = 0;
+            log('Log cleared');
+        });
+
         // --- Bluetooth Functions ---
         async function connectToDevice() {
             try {
                 log('Requesting Bluetooth device...');
+                statusDisplay.textContent = 'Searching...';
                 bleDevice = await navigator.bluetooth.requestDevice({
                     filters: [{ name: 'ESP32-Euler' }],
                     optionalServices: [SERVICE_UUID]
@@ -184,10 +209,11 @@
                 log('Connected!');
                 statusDisplay.textContent = `Connected to ${bleDevice.name}`;
                 connectButton.textContent = 'Disconnect';
+                connectButton.classList.replace('bg-blue-600', 'bg-red-600');
                 updateButtonStates(true);
             } catch (error) {
                 log(`[ERROR] Connection failed: ${error}`);
-                statusDisplay.textContent = 'Connection failed. See console.';
+                statusDisplay.textContent = 'Connection failed.';
                 updateButtonStates(false);
             }
         }
@@ -201,6 +227,7 @@
             log(`Device ${event.target.name} is disconnected.`);
             statusDisplay.textContent = 'Disconnected';
             connectButton.textContent = 'Connect';
+            connectButton.classList.replace('bg-red-600', 'bg-blue-600');
             currentOrientation = { yaw: 0, pitch: 0, roll: 0 };
             updateMainDisplay();
             updateButtonStates(false);
