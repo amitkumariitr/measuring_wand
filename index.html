@@ -80,12 +80,15 @@
         </div>
 
         <!-- History Log -->
-        <div class="section-container mt-8 pt-6 border-t border-gray-200 w-full">
+        <div class="section-container mt-8 pt-6 border-t border-gray-200 w-full text-left">
             <div class="flex justify-between items-center mb-3">
                 <h2 class="text-lg font-semibold text-gray-700">Recorded Differences</h2>
-                <button id="clearLogButton" class="text-xs text-gray-400 hover:text-red-500 transition-colors">Clear Log</button>
+                <div class="flex gap-4 items-center">
+                    <button id="clearLogButton" class="text-xs text-gray-400 hover:text-red-500 transition-colors">Clear Log</button>
+                </div>
             </div>
-            <div id="logContainer" class="bg-gray-50 border border-gray-300 rounded-lg overflow-x-auto">
+            
+            <div id="logContainer" class="bg-gray-50 border border-gray-300 rounded-lg overflow-x-auto mb-4">
                 <div class="log-header grid grid-cols-[80px_1fr_1fr_1fr] gap-4 p-2 font-bold text-gray-600 bg-gray-200 sticky top-0 text-right">
                     <span class="text-left">Name</span>
                     <span>Yaw (Y)</span>
@@ -96,6 +99,10 @@
                     <!-- Logged entries will be appended here -->
                 </div>
             </div>
+
+            <button id="downloadDataButton" class="w-full bg-gray-800 text-white border-none py-3 px-6 text-base rounded-lg cursor-pointer transition-all duration-300 hover:bg-black active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed disabled:active:scale-100" disabled>
+                Download Data (.csv)
+            </button>
         </div>
     </div>
 
@@ -111,6 +118,7 @@
         const setDatumButton = document.getElementById('setDatumButton');
         const resetDatumButton = document.getElementById('resetDatumButton');
         const recordDifferenceButton = document.getElementById('recordDifferenceButton');
+        const downloadDataButton = document.getElementById('downloadDataButton');
         const clearLogButton = document.getElementById('clearLogButton');
         const yawLabel = document.getElementById('yawLabel');
         const pitchLabel = document.getElementById('pitchLabel');
@@ -129,12 +137,14 @@
         let datum = { yaw: 0, pitch: 0, roll: 0 };
         let displayMode = 'absolute';
         let logCounter = 0;
+        let recordedData = []; // Store data objects for CSV export
 
         // --- Initialization ---
         document.addEventListener('DOMContentLoaded', () => {
             updateDatumDisplay();
             updateButtonStyles();
             updateButtonStates(false);
+            updateDownloadButtonState();
         });
 
         // --- Event Listeners ---
@@ -168,6 +178,13 @@
             const diffPitch = currentOrientation.pitch - datum.pitch;
             const diffRoll = currentOrientation.roll - datum.roll;
             
+            // Store data for CSV
+            recordedData.push({
+                serial: logCounter,
+                datum: { ...datum },
+                diff: { yaw: diffYaw, pitch: diffPitch, roll: diffRoll }
+            });
+
             const logEntry = document.createElement('div');
             logEntry.className = 'log-entry';
             logEntry.innerHTML = `
@@ -178,12 +195,20 @@
             `;
             logBody.appendChild(logEntry);
             logBody.scrollTop = logBody.scrollHeight;
+            
+            updateDownloadButtonState();
             log(`Recorded Diff ${logCounter}: Y:${diffYaw.toFixed(2)}, P:${diffPitch.toFixed(2)}, R:${diffRoll.toFixed(2)}`);
+        });
+
+        downloadDataButton.addEventListener('click', () => {
+            downloadCSV();
         });
 
         clearLogButton.addEventListener('click', () => {
             logBody.innerHTML = '';
             logCounter = 0;
+            recordedData = [];
+            updateDownloadButtonState();
             log('Log cleared');
         });
 
@@ -242,12 +267,45 @@
             updateMainDisplay();
         }
 
+        // --- CSV Export Logic ---
+        function downloadCSV() {
+            if (recordedData.length === 0) return;
+
+            const headers = ["Serial", "Datum_Yaw", "Datum_Pitch", "Datum_Roll", "Diff_Yaw", "Diff_Pitch", "Diff_Roll"];
+            const rows = recordedData.map(r => [
+                r.serial,
+                r.datum.yaw.toFixed(4),
+                r.datum.pitch.toFixed(4),
+                r.datum.roll.toFixed(4),
+                r.diff.yaw.toFixed(4),
+                r.diff.pitch.toFixed(4),
+                r.diff.roll.toFixed(4)
+            ]);
+
+            const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            
+            const link = document.createElement("a");
+            const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+            link.setAttribute("href", url);
+            link.setAttribute("download", `orientation_tracker_data_${timestamp}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
         // --- UI Update Functions ---
         function updateButtonStates(isConnected) {
             const controlButtons = document.querySelectorAll('.control-button');
             controlButtons.forEach(button => {
                 button.disabled = !isConnected;
             });
+        }
+
+        function updateDownloadButtonState() {
+            downloadDataButton.disabled = recordedData.length === 0;
         }
 
         function setDisplayMode(mode) {
