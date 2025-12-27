@@ -313,7 +313,6 @@
                 transferStatus.textContent = `Receiving... (${jsonBuffer.length} bytes)`;
 
                 // Heuristic: Check if buffer ends with the JSON array closer ']'
-                // Note: This assumes the JSON is an array. If ESP32 sends objects, check for '}'
                 if (jsonBuffer.trim().endsWith(']')) {
                     log("Complete JSON detected. Parsing...");
                     
@@ -326,14 +325,17 @@
                         return;
                     }
 
-                    // Convert JSON to CSV
-                    const headers = ["Record_ID", "Diff_Yaw", "Diff_Pitch", "Diff_Roll"];
+                    // Convert JSON to CSV - Match local format
+                    const headers = ["Serial", "Datum_Yaw", "Datum_Pitch", "Datum_Roll", "Diff_Yaw", "Diff_Pitch", "Diff_Roll"];
                     const rows = dataObj.map(row => {
                         return [
                             row.rec,
-                            (row.dY || 0).toFixed(2),
-                            (row.dP || 0).toFixed(2),
-                            (row.dR || 0).toFixed(2)
+                            (row.datY || 0).toFixed(2), // Datum Yaw
+                            (row.datP || 0).toFixed(2), // Datum Pitch
+                            (row.datR || 0).toFixed(2), // Datum Roll
+                            (row.dY || 0).toFixed(2),   // Diff Yaw
+                            (row.dP || 0).toFixed(2),   // Diff Pitch
+                            (row.dR || 0).toFixed(2)    // Diff Roll
                         ].join(",");
                     });
 
