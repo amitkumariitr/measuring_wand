@@ -101,7 +101,7 @@
             </div>
 
             <button id="downloadDataButton" class="w-full bg-gray-800 text-white border-none py-3 px-6 text-base rounded-lg cursor-pointer transition-all duration-300 hover:bg-black active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed disabled:active:scale-100" disabled>
-                Download Data (.csv)
+                Download Local Data (.csv)
             </button>
         </div>
     </div>
@@ -109,6 +109,7 @@
     <script>
         const SERVICE_UUID = 'abcd0000-0000-0000-0000-000000000001';
         const CHARACTERISTIC_UUID = 'abcd0000-0000-0000-0000-000000000002';
+        const REC_DATA_UUID = 'abcd0000-0000-0000-0000-000000000003';
 
         // --- Element References ---
         const connectButton = document.getElementById('connectButton');
@@ -201,7 +202,7 @@
         });
 
         downloadDataButton.addEventListener('click', () => {
-            downloadCSV();
+            downloadLocalCSV();
         });
 
         clearLogButton.addEventListener('click', () => {
@@ -222,15 +223,31 @@
                     optionalServices: [SERVICE_UUID]
                 });
                 bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
+                
                 log('Connecting to GATT Server...');
                 const server = await bleDevice.gatt.connect();
+                
                 log('Getting Service...');
                 const service = await server.getPrimaryService(SERVICE_UUID);
-                log('Getting Characteristic...');
+                
+                // --- 1. Subscribe to Live Euler Angles ---
+                log('Getting Euler Characteristic...');
                 const characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
-                log('Starting Notifications...');
+                log('Starting Euler Notifications...');
                 await characteristic.startNotifications();
                 characteristic.addEventListener('characteristicvaluechanged', handleNotifications);
+
+                // --- 2. Subscribe to Recorded Data (JSON) ---
+                log('Getting Recorder Characteristic...');
+                try {
+                    const recCharacteristic = await service.getCharacteristic(REC_DATA_UUID);
+                    log('Starting Recorder Notifications...');
+                    await recCharacteristic.startNotifications();
+                    recCharacteristic.addEventListener('characteristicvaluechanged', handleDeviceData);
+                } catch (e) {
+                    log('[WARN] Recorder characteristic not found or failed: ' + e);
+                }
+
                 log('Connected!');
                 statusDisplay.textContent = `Connected to ${bleDevice.name}`;
                 connectButton.textContent = 'Disconnect';
@@ -267,8 +284,55 @@
             updateMainDisplay();
         }
 
+        /**
+         * Handles incoming JSON data from the ESP32, converts to CSV, and auto-downloads.
+         */
+        function handleDeviceData(event) {
+            try {
+                const value = event.target.value;
+                const decoder = new TextDecoder('utf-8');
+                const jsonString = decoder.decode(value);
+                
+                log("Received Device Data (JSON): " + jsonString.substring(0, 50) + "...");
+                
+                const dataObj = JSON.parse(jsonString);
+                
+                // Verify structure is an array
+                if (!Array.isArray(dataObj)) {
+                    log("Error: Received data is not an array.");
+                    return;
+                }
+
+                // Convert JSON to CSV
+                const headers = ["Record_ID", "Diff_Yaw", "Diff_Pitch", "Diff_Roll"];
+                const rows = dataObj.map(row => {
+                    // JSON keys from ESP32: rec, dY, dP, dR
+                    return [
+                        row.rec,
+                        (row.dY || 0).toFixed(2),
+                        (row.dP || 0).toFixed(2),
+                        (row.dR || 0).toFixed(2)
+                    ].join(",");
+                });
+
+                const csvContent = headers.join(",") + "\n" + rows.join("\n");
+                
+                // Trigger Download
+                const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+                downloadFile(csvContent, `device_imu_data_${timestamp}.csv`, 'text/csv;charset=utf-8;');
+                
+                statusDisplay.textContent = "Device Data Downloaded!";
+                setTimeout(() => {
+                    if (bleDevice && bleDevice.gatt.connected) statusDisplay.textContent = `Connected to ${bleDevice.name}`;
+                }, 3000);
+
+            } catch (error) {
+                log("Error parsing device data: " + error);
+            }
+        }
+
         // --- CSV Export Logic ---
-        function downloadCSV() {
+        function downloadLocalCSV() {
             if (recordedData.length === 0) return;
 
             const headers = ["Serial", "Datum_Yaw", "Datum_Pitch", "Datum_Roll", "Diff_Yaw", "Diff_Pitch", "Diff_Roll"];
@@ -283,17 +347,22 @@
             ]);
 
             const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+            downloadFile(csvContent, `local_tracker_data_${timestamp}.csv`, 'text/csv;charset=utf-8;');
+        }
+
+        function downloadFile(content, fileName, mimeType) {
+            const blob = new Blob([content], { type: mimeType });
             const url = URL.createObjectURL(blob);
             
             const link = document.createElement("a");
-            const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
             link.setAttribute("href", url);
-            link.setAttribute("download", `orientation_tracker_data_${timestamp}.csv`);
+            link.setAttribute("download", fileName);
             link.style.visibility = 'hidden';
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
+            URL.revokeObjectURL(url);
         }
 
         // --- UI Update Functions ---
