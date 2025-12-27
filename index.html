@@ -84,6 +84,7 @@
             <div class="flex justify-between items-center mb-3">
                 <h2 class="text-lg font-semibold text-gray-700">Recorded Differences</h2>
                 <div class="flex gap-4 items-center">
+                    <button id="resetBufferButton" class="text-xs text-blue-500 hover:text-blue-700 transition-colors" title="Fix stuck downloads">Reset Buffer</button>
                     <button id="clearLogButton" class="text-xs text-gray-400 hover:text-red-500 transition-colors">Clear Log</button>
                 </div>
             </div>
@@ -103,6 +104,7 @@
             <button id="downloadDataButton" class="w-full bg-gray-800 text-white border-none py-3 px-6 text-base rounded-lg cursor-pointer transition-all duration-300 hover:bg-black active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed disabled:active:scale-100" disabled>
                 Download Local Data (.csv)
             </button>
+            <div id="transferStatus" class="text-xs text-center text-gray-500 mt-2 h-4"></div>
         </div>
     </div>
 
@@ -121,6 +123,8 @@
         const recordDifferenceButton = document.getElementById('recordDifferenceButton');
         const downloadDataButton = document.getElementById('downloadDataButton');
         const clearLogButton = document.getElementById('clearLogButton');
+        const resetBufferButton = document.getElementById('resetBufferButton');
+        const transferStatus = document.getElementById('transferStatus');
         const yawLabel = document.getElementById('yawLabel');
         const pitchLabel = document.getElementById('pitchLabel');
         const rollLabel = document.getElementById('rollLabel');
@@ -139,6 +143,9 @@
         let displayMode = 'absolute';
         let logCounter = 0;
         let recordedData = []; // Store data objects for CSV export
+        
+        // --- Buffer for JSON Reassembly ---
+        let jsonBuffer = ""; 
 
         // --- Initialization ---
         document.addEventListener('DOMContentLoaded', () => {
@@ -212,6 +219,12 @@
             updateDownloadButtonState();
             log('Log cleared');
         });
+        
+        resetBufferButton.addEventListener('click', () => {
+            jsonBuffer = "";
+            transferStatus.textContent = "Buffer cleared.";
+            setTimeout(() => { transferStatus.textContent = ""; }, 2000);
+        });
 
         // --- Bluetooth Functions ---
         async function connectToDevice() {
@@ -273,6 +286,7 @@
             currentOrientation = { yaw: 0, pitch: 0, roll: 0 };
             updateMainDisplay();
             updateButtonStates(false);
+            jsonBuffer = ""; // Clear buffer on disconnect
         }
 
         function handleNotifications(event) {
@@ -285,49 +299,70 @@
         }
 
         /**
-         * Handles incoming JSON data from the ESP32, converts to CSV, and auto-downloads.
+         * Handles incoming JSON chunks from the ESP32.
+         * Accumulates fragments and parses only when a complete JSON array is detected.
          */
         function handleDeviceData(event) {
             try {
                 const value = event.target.value;
                 const decoder = new TextDecoder('utf-8');
-                const jsonString = decoder.decode(value);
+                const chunk = decoder.decode(value);
                 
-                log("Received Device Data (JSON): " + jsonString.substring(0, 50) + "...");
-                
-                const dataObj = JSON.parse(jsonString);
-                
-                // Verify structure is an array
-                if (!Array.isArray(dataObj)) {
-                    log("Error: Received data is not an array.");
-                    return;
+                // Accumulate the chunk
+                jsonBuffer += chunk;
+                transferStatus.textContent = `Receiving... (${jsonBuffer.length} bytes)`;
+
+                // Heuristic: Check if buffer ends with the JSON array closer ']'
+                // Note: This assumes the JSON is an array. If ESP32 sends objects, check for '}'
+                if (jsonBuffer.trim().endsWith(']')) {
+                    log("Complete JSON detected. Parsing...");
+                    
+                    const dataObj = JSON.parse(jsonBuffer);
+                    
+                    // Verify structure is an array
+                    if (!Array.isArray(dataObj)) {
+                        log("Error: Received data is not an array.");
+                        jsonBuffer = ""; // Reset on error
+                        return;
+                    }
+
+                    // Convert JSON to CSV
+                    const headers = ["Record_ID", "Diff_Yaw", "Diff_Pitch", "Diff_Roll"];
+                    const rows = dataObj.map(row => {
+                        return [
+                            row.rec,
+                            (row.dY || 0).toFixed(2),
+                            (row.dP || 0).toFixed(2),
+                            (row.dR || 0).toFixed(2)
+                        ].join(",");
+                    });
+
+                    const csvContent = headers.join(",") + "\n" + rows.join("\n");
+                    
+                    // Trigger Download
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+                    downloadFile(csvContent, `device_imu_data_${timestamp}.csv`, 'text/csv;charset=utf-8;');
+                    
+                    statusDisplay.textContent = "Device Data Downloaded!";
+                    transferStatus.textContent = "Download Complete";
+                    
+                    // Clear buffer after successful processing
+                    jsonBuffer = ""; 
+                    
+                    setTimeout(() => {
+                        if (bleDevice && bleDevice.gatt.connected) statusDisplay.textContent = `Connected to ${bleDevice.name}`;
+                        transferStatus.textContent = "";
+                    }, 3000);
                 }
 
-                // Convert JSON to CSV
-                const headers = ["Record_ID", "Diff_Yaw", "Diff_Pitch", "Diff_Roll"];
-                const rows = dataObj.map(row => {
-                    // JSON keys from ESP32: rec, dY, dP, dR
-                    return [
-                        row.rec,
-                        (row.dY || 0).toFixed(2),
-                        (row.dP || 0).toFixed(2),
-                        (row.dR || 0).toFixed(2)
-                    ].join(",");
-                });
-
-                const csvContent = headers.join(",") + "\n" + rows.join("\n");
-                
-                // Trigger Download
-                const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-                downloadFile(csvContent, `device_imu_data_${timestamp}.csv`, 'text/csv;charset=utf-8;');
-                
-                statusDisplay.textContent = "Device Data Downloaded!";
-                setTimeout(() => {
-                    if (bleDevice && bleDevice.gatt.connected) statusDisplay.textContent = `Connected to ${bleDevice.name}`;
-                }, 3000);
-
             } catch (error) {
-                log("Error parsing device data: " + error);
+                // If JSON.parse fails, it means we likely have a partial chunk.
+                // We do NOTHING here but wait for the next chunk.
+                // Only log if it's NOT a syntax error (which is expected during buffering)
+                if (!(error instanceof SyntaxError)) {
+                    log("Error processing data: " + error);
+                    jsonBuffer = ""; // Clear buffer on fatal error
+                }
             }
         }
 
